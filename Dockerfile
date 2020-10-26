@@ -1,5 +1,7 @@
+# FROM ubuntu:latest
 FROM debian:stretch-slim
-LABEL maintainer="Phil Hawthorne <me@philhawthorne.com>"
+
+LABEL maintainer="Fan Kainang <fankainang@gmail.com>"
 
 ENV DEBIAN_FRONTEND noninteractive
 ENV LANG C.UTF-8
@@ -8,12 +10,15 @@ ENV LANG C.UTF-8
 ENV INFLUXDB_VERSION=1.8.2
 ENV CHRONOGRAF_VERSION=1.8.6
 ENV GRAFANA_VERSION=7.2.0
+ENV KAPACITOR_VERSION=1.5.6-1
 
 # Grafana database type
 ENV GF_DATABASE_TYPE=sqlite3
 
 # Fix bad proxy issue
 COPY system/99fixbadproxy /etc/apt/apt.conf.d/99fixbadproxy
+
+COPY system/sources.list /etc/apt/sources.list
 
 WORKDIR /root
 
@@ -25,8 +30,8 @@ RUN ARCH= && dpkgArch="$(dpkg --print-architecture)" && \
       armhf) ARCH='armhf';; \
       armel) ARCH='armel';; \
       *)     echo "Unsupported architecture: ${dpkgArch}"; exit 1;; \
-    esac && \
-    rm /var/lib/apt/lists/* -vf \
+    esac  \
+    && rm /var/lib/apt/lists/* -vf \
     # Base dependencies
     && apt-get -y update \
     && apt-get -y dist-upgrade \
@@ -37,11 +42,12 @@ RUN ARCH= && dpkgArch="$(dpkg --print-architecture)" && \
         git \
         htop \
         libfontconfig \
-        nano \
+        vim \
         net-tools \
         supervisor \
         wget \
         gnupg \
+        silversearcher-ag \
     && curl -sL https://deb.nodesource.com/setup_10.x | bash - \
     && apt-get install -y nodejs \
     && mkdir -p /var/log/supervisor \
@@ -57,6 +63,9 @@ RUN ARCH= && dpkgArch="$(dpkg --print-architecture)" && \
     && wget https://dl.grafana.com/oss/release/grafana_${GRAFANA_VERSION}_${ARCH}.deb \
     && dpkg -i grafana_${GRAFANA_VERSION}_${ARCH}.deb \
     && rm grafana_${GRAFANA_VERSION}_${ARCH}.deb \
+    # Install Kapacitor
+    && wget https://dl.influxdata.com/kapacitor/releases/kapacitor_${KAPACITOR_VERSION}_${ARCH}.deb \
+    && sudo dpkg -i kapacitor_1.5.6-1_amd64.deb \
     # Cleanup
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
@@ -69,7 +78,10 @@ COPY bash/profile .profile
 COPY influxdb/influxdb.conf /etc/influxdb/influxdb.conf
 
 # Configure Grafana
-COPY grafana/grafana.ini /etc/grafana/grafana.ini
+COPY grafana/* /etc/grafana/
+
+# Configure Kapacitor
+COPY kapacitor/kapacitor.conf /etc/kapacitor/kapacitor.conf
 
 COPY run.sh /run.sh
 RUN ["chmod", "+x", "/run.sh"]
